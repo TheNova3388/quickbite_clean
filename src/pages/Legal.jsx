@@ -340,18 +340,73 @@ const DOCS = {
   privacidad: { titulo: 'Política de privacidad', texto: PRIVACIDAD },
 }
 
+
+// Texto en línea: **negrita**, *cursiva* y [texto](enlace)
+function enLinea(texto) {
+  const partes = texto.split(/(\*\*[^*]+\*\*|\*[^*\s][^*]*\*|\[[^\]]+\]\([^)]+\))/g)
+  return partes.map((p, i) => {
+    if (/^\*\*[^*]+\*\*$/.test(p)) return <strong key={i} className="text-navy font-semibold">{p.slice(2, -2)}</strong>
+    if (/^\*[^*]+\*$/.test(p)) return <em key={i}>{p.slice(1, -1)}</em>
+    const m = p.match(/^\[([^\]]+)\]\(([^)]+)\)$/)
+    if (m) return <a key={i} href={m[2]} className="text-orange underline" target="_blank" rel="noreferrer">{m[1]}</a>
+    return p
+  })
+}
+
+// Convierte el texto (estilo Markdown) en elementos: #, ##, ### títulos; "- " listas; líneas en blanco = párrafo
+function Formato({ texto }) {
+  const out = []
+  let parrafo = []
+  let lista = []
+  const cierraParrafo = () => {
+    if (parrafo.length) {
+      out.push(
+        <p key={out.length} className="text-sub text-sm leading-relaxed">
+          {parrafo.map((l, i) => <span key={i}>{i > 0 && <br />}{enLinea(l)}</span>)}
+        </p>
+      )
+      parrafo = []
+    }
+  }
+  const cierraLista = () => {
+    if (lista.length) {
+      out.push(
+        <ul key={out.length} className="list-disc pl-6 space-y-1 text-sub text-sm leading-relaxed">
+          {lista.map((l, i) => <li key={i}>{enLinea(l)}</li>)}
+        </ul>
+      )
+      lista = []
+    }
+  }
+
+  for (const cruda of texto.trim().split('\n')) {
+    const l = cruda.trim()
+    const h = l.match(/^(#{1,4})\s+(.*)$/)
+    const li = l.match(/^[-*•]\s+(.*)$/)
+    if (!l) { cierraParrafo(); cierraLista() }
+    else if (h) {
+      cierraParrafo(); cierraLista()
+      const nivel = h[1].length
+      const clase = nivel <= 2
+        ? 'font-playfair font-bold text-xl text-navy pt-4'
+        : 'font-semibold text-base text-navy pt-2'
+      out.push(<h2 key={out.length} className={clase}>{enLinea(h[2])}</h2>)
+    } else if (li) { cierraParrafo(); lista.push(li[1]) }
+    else { cierraLista(); parrafo.push(l) }
+  }
+  cierraParrafo(); cierraLista()
+  return <>{out}</>
+}
+
 export default function Legal({ tipo }) {
   useEffect(() => { window.scrollTo(0, 0) }, [tipo])
   const { titulo, texto } = DOCS[tipo]
-  const bloques = texto.trim().split(/\n\s*\n/)
 
   return (
     <div className="max-w-3xl mx-auto px-6 py-14">
       <h1 className="font-playfair font-bold text-3xl md:text-4xl text-navy mb-8">{titulo}</h1>
       <div className="bg-white border border-border rounded-3xl p-8 space-y-4">
-        {bloques.map((b, i) => b.startsWith('# ')
-          ? <h2 key={i} className="font-playfair font-bold text-xl text-navy pt-2">{b.slice(2)}</h2>
-          : <p key={i} className="text-sub text-sm leading-relaxed whitespace-pre-line">{b}</p>)}
+        <Formato texto={texto} />
       </div>
     </div>
   )
